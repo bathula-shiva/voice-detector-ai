@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SURAKSHA AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f1a;
+            --card-bg: #161b2c;
+            --primary: #4f46e5;
+            --secondary: #06b6d4;
+            --text-main: #f8fafc;
+            --ai-red: #f87171;
+            --human-green: #4ade80;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .main-card {
+            background: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 2rem;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 { font-weight: 800; font-size: 2rem; margin-bottom: 2rem; letter-spacing: 1px; }
+        h1 span { color: var(--secondary); }
+
+        .file-area {
+            position: relative;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: 0.3s;
+        }
+
+        .file-area:hover { border-color: var(--secondary); background: rgba(6, 182, 212, 0.05); }
+
+        #audio-input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .detect-btn {
+            width: 100%;
+            height: 60px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .detect-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(6, 182, 212, 0.3); }
+
+        /* Confidence Meter Styles */
+        #result-box {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+
+        .meter-wrapper {
+            background: rgba(255, 255, 255, 0.05);
+            height: 12px;
+            border-radius: 10px;
+            margin: 15px 0;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #meter-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--secondary);
+        }
+
+        .meter-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .result-label { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; }
+        .score-display { font-size: 1.4rem; font-weight: 700; color: var(--secondary); }
+    </style>
+</head>
+<body>
+
+<div class="main-card">
+    <h1>SURAKSHA <span>AI</span></h1>
+
+    <div class="file-area">
+        <input type="file" id="audio-input" accept="audio/*">
+        <div id="file-name" style="color: #94a3b8;">Upload Audio File</div>
+    </div>
+
+    <button id="detect-btn" class="detect-btn">Analyze Voice</button>
+
+    <div id="result-box">
+        <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px;">Analysis</div>
+        <div id="pred-text" class="result-label">--</div>
+        
+        <div style="font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-top: 1rem;">Confidence Meter</div>
+        <div class="meter-wrapper">
+            <div id="meter-fill"></div>
+        </div>
+        <div class="meter-labels">
+            <span>0.0</span>
+            <span>0.5</span>
+            <span>1.0</span>
+        </div>
+        <div id="conf-score" class="score-display">0.00</div>
+    </div>
+</div>
+
+<script>
+    const btn = document.getElementById('detect-btn');
+    const input = document.getElementById('audio-input');
+    const label = document.getElementById('file-name');
+    const resultBox = document.getElementById('result-box');
+    const meterFill = document.getElementById('meter-fill');
+
+    input.addEventListener('change', () => {
+        if(input.files[0]) label.innerText = input.files[0].name;
+    });
+
+    btn.addEventListener('click', async () => {
+        if (!input.files[0]) return alert("Please select a file.");
+
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+        resultBox.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', input.files[0]);
+
+        try {
+            const response = await fetch('/detect', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            // Handle the 0.0 to 1.0 confidence score
+            const confidence = parseFloat(data.confidence).toFixed(2);
+            const isAI = data.prediction === "AI_GENERATED";
+
+            resultBox.style.display = 'block';
+            
+            const predEl = document.getElementById('pred-text');
+            predEl.innerText = isAI ? "AI GENERATED" : "HUMAN VOICE";
+            predEl.style.color = isAI ? "var(--ai-red)" : "var(--human-green)";
+            
+            document.getElementById('conf-score').innerText = confidence;
+            document.getElementById('conf-score').style.color = isAI ? "var(--ai-red)" : "var(--human-green)";
+
+            // Map decimal to percentage for CSS width
+            setTimeout(() => {
+                meterFill.style.width = (confidence * 100) + "%";
+                meterFill.style.background = isAI ? "var(--ai-red)" : "var(--human-green)";
+            }, 100);
+
+        } catch (error) {
+            alert("Connection error.");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Analyze Voice";
+        }
+    });
+</script>
+
+</body>
+</html>
